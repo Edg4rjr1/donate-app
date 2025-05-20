@@ -1,7 +1,21 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        jcenter()
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
+    }
+    dependencies {
+        classpath("com.google.gms:google-services:4.4.0")
+    }
+}
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+        jcenter()
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
     }
 }
 

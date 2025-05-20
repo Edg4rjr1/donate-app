@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -10,6 +11,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _categoriaSelecionada = '';
   String _searchText = '';
 
+  // ─────────── AÇÕES ───────────
   void _mostrarCategorias() {
     showModalBottomSheet(
       context: context,
@@ -29,47 +31,63 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _abrirFormulario() async {
     final novaDoacao = await Navigator.pushNamed(context, '/doacao');
-
     if (novaDoacao != null && novaDoacao is Map<String, String>) {
       setState(() => doacoes.add(novaDoacao));
     }
   }
 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    // Volta para a tela de login removendo todas as rotas anteriores
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+    }
+  }
+
+  // ─────────── FILTRO ───────────
   List<Map<String, String>> get _doacoesFiltradas {
     return doacoes.where((d) {
-      final matchCategoria = _categoriaSelecionada == '' || d['categoria'] == _categoriaSelecionada;
+      final matchCategoria = _categoriaSelecionada.isEmpty || d['categoria'] == _categoriaSelecionada;
       final matchBusca = _searchText.isEmpty || d['nome']!.toLowerCase().contains(_searchText.toLowerCase());
       return matchCategoria && matchBusca;
     }).toList();
   }
 
+  // ─────────── UI ───────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('ShareNow - Início'),
+        title: const Text('ShareNow - Início'),
         actions: [
-          IconButton(icon: Icon(Icons.menu), onPressed: _mostrarCategorias),
+          IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Filtrar por categoria',
+            onPressed: _mostrarCategorias,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: _logout,
+          ),
         ],
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             TextField(
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Buscar doações...',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
-              onChanged: (valor) {
-                setState(() => _searchText = valor);
-              },
+              onChanged: (valor) => setState(() => _searchText = valor),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Expanded(
               child: _doacoesFiltradas.isEmpty
-                  ? Center(child: Text('Nenhuma doação encontrada'))
+                  ? const Center(child: Text('Nenhuma doação encontrada'))
                   : ListView.builder(
                       itemCount: _doacoesFiltradas.length,
                       itemBuilder: (context, index) {
@@ -87,8 +105,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
         onPressed: _abrirFormulario,
+        child: const Icon(Icons.add),
       ),
     );
   }

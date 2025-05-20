@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "919511123816",
+    "project_id": "donate-app10",
+    "storage_bucket": "donate-app10.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:919511123816:android:be2e7027d26fa79f35b8dd",
+        "android_client_info": {
+          "package_name": "com.example.meu_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDt6Hg2Dt9B2NHuqViDKTtDJMzkTEspJsw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
