@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DoacaoTela extends StatefulWidget {
   @override
@@ -11,27 +13,70 @@ class _DoacaoTelaState extends State<DoacaoTela> {
   String descricao = '';
   String categoria = 'Roupas';
 
-  List<String> categorias = ['Roupas', 'Alimentos', 'Eletrônicos', 'Livros'];
+  List<String> categorias = ['Roupas', 'Comida', 'Brinquedos', 'Outros'];
+
+  bool _isLoading = false;  // Para mostrar loading no botão
+
+  Future<void> _salvarDoacao() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      // Usuário não logado
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Usuário não está logado. Faça login para continuar.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await FirebaseFirestore.instance.collection('doacoes').add({
+        'nome': nome,
+        'descricao': descricao,
+        'categoria': categoria,
+        'timestamp': Timestamp.now(),
+        'uid': uid,  // Salva o uid do usuário junto
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Doação salva com sucesso!')),
+      );
+
+      Navigator.pop(context); // Fecha a tela após salvar
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar doação: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Cadastrar Doação')),
+      appBar: AppBar(title: const Text('Cadastrar Doação')),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               TextFormField(
-                decoration: InputDecoration(labelText: 'Nome do produto'),
-                onSaved: (value) => nome = value!,
+                decoration: const InputDecoration(labelText: 'Nome do produto'),
+                onSaved: (value) => nome = value!.trim(),
                 validator: (value) =>
-                    value!.isEmpty ? 'Digite o nome do produto' : null,
+                    value == null || value.trim().isEmpty ? 'Digite o nome do produto' : null,
               ),
               TextFormField(
-                decoration: InputDecoration(labelText: 'Descrição'),
-                onSaved: (value) => descricao = value!,
+                decoration: const InputDecoration(labelText: 'Descrição'),
+                onSaved: (value) => descricao = value?.trim() ?? '',
               ),
               DropdownButtonFormField<String>(
                 value: categoria,
@@ -39,22 +84,29 @@ class _DoacaoTelaState extends State<DoacaoTela> {
                   return DropdownMenuItem(value: cat, child: Text(cat));
                 }).toList(),
                 onChanged: (value) => setState(() => categoria = value!),
-                decoration: InputDecoration(labelText: 'Categoria'),
+                decoration: const InputDecoration(labelText: 'Categoria'),
               ),
-              SizedBox(height: 20),
-              ElevatedButton(
-                child: Text('Salvar Doação'),
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    _formKey.currentState!.save();
-                    Navigator.pop(context, {
-                      'nome': nome,
-                      'descricao': descricao,
-                      'categoria': categoria
-                    });
-                  }
-                },
-              )
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  child: _isLoading
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Salvar Doação'),
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          if (_formKey.currentState!.validate()) {
+                            _formKey.currentState!.save();
+                            _salvarDoacao();
+                          }
+                        },
+                ),
+              ),
             ],
           ),
         ),

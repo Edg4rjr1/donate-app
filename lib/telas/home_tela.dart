@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'doacao_tela.dart';
+import 'detalhe_doacao_page.dart';
+
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -7,106 +11,209 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Map<String, String>> doacoes = [];
-  String _categoriaSelecionada = '';
-  String _searchText = '';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ─────────── AÇÕES ───────────
-  void _mostrarCategorias() {
-    showModalBottomSheet(
+  List<DocumentSnapshot> _doacoes = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  final int _documentLimit = 10;
+  DocumentSnapshot? _lastDocument;
+
+  ScrollController _scrollController = ScrollController();
+
+  String _categoriaSelecionada = 'Todas';
+
+  @override
+  void initState() {
+    super.initState();
+    _getDoacoes();
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        _getDoacoes();
+      }
+    });
+  }
+
+  Future<void> _getDoacoes() async {
+    if (_isLoading || !_hasMore) return;
+
+    setState(() => _isLoading = true);
+
+    Query query = _firestore
+        .collection('doac')
+        .orderBy('timestamp', descending: true)
+        .limit(_documentLimit);
+
+    if (_categoriaSelecionada != 'Todas') {
+      query = query.where('categoria', isEqualTo: _categoriaSelecionada);
+    }
+
+    if (_lastDocument != null) {
+      query = query.startAfterDocument(_lastDocument!);
+    }
+
+    final querySnapshot = await query.get();
+
+    if (querySnapshot.docs.length < _documentLimit) {
+      _hasMore = false;
+    }
+
+    if (querySnapshot.docs.isNotEmpty) {
+      _lastDocument = querySnapshot.docs.last;
+      _doacoes.addAll(querySnapshot.docs);
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  void _confirmarLogout() {
+    showDialog(
       context: context,
-      builder: (_) => ListView(
-        children: ['Roupas', 'Alimentos', 'Eletrônicos', 'Livros'].map((cat) {
-          return ListTile(
-            title: Text(cat),
-            onTap: () {
-              Navigator.pop(context);
-              setState(() => _categoriaSelecionada = cat);
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Logout'),
+        content: const Text('Você deseja realmente sair da sua conta?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _auth.signOut();
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
             },
-          );
-        }).toList(),
+            child: const Text('Sair'),
+          ),
+        ],
       ),
     );
   }
 
-  void _abrirFormulario() async {
-    final novaDoacao = await Navigator.pushNamed(context, '/doacao');
-    if (novaDoacao != null && novaDoacao is Map<String, String>) {
-      setState(() => doacoes.add(novaDoacao));
-    }
+  Future<void> _filtrarPorCategoria(String categoria) async {
+    setState(() {
+      _categoriaSelecionada = categoria;
+      _doacoes.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    });
+    await _getDoacoes();
   }
 
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    // Volta para a tela de login removendo todas as rotas anteriores
-    if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
-    }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  // ─────────── FILTRO ───────────
-  List<Map<String, String>> get _doacoesFiltradas {
-    return doacoes.where((d) {
-      final matchCategoria = _categoriaSelecionada.isEmpty || d['categoria'] == _categoriaSelecionada;
-      final matchBusca = _searchText.isEmpty || d['nome']!.toLowerCase().contains(_searchText.toLowerCase());
-      return matchCategoria && matchBusca;
-    }).toList();
-  }
-
-  // ─────────── UI ───────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ShareNow - Início'),
+        title: const Text('ShareNow - Feed'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.menu),
-            tooltip: 'Filtrar por categoria',
-            onPressed: _mostrarCategorias,
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-            onPressed: _logout,
+            onPressed: _confirmarLogout,
+            tooltip: 'Logout',
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Buscar doações...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (valor) => setState(() => _searchText = valor),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: DropdownButton<String>(
+              value: _categoriaSelecionada,
+              onChanged: (value) {
+                if (value != null) {
+                  _filtrarPorCategoria(value);
+                }
+              },
+              items: const [
+                DropdownMenuItem(value: 'Todas', child: Text('Todas')),
+                DropdownMenuItem(value: 'Roupas', child: Text('Roupas')),
+                DropdownMenuItem(value: 'Comida', child: Text('Comida')),
+                DropdownMenuItem(value: 'Brinquedos', child: Text('Brinquedos')),
+                DropdownMenuItem(value: 'Outros', child: Text('Outros')),
+              ],
             ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _doacoesFiltradas.isEmpty
-                  ? const Center(child: Text('Nenhuma doação encontrada'))
-                  : ListView.builder(
-                      itemCount: _doacoesFiltradas.length,
+          ),
+          Expanded(
+            child: _doacoes.isEmpty && _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      _doacoes.clear();
+                      _lastDocument = null;
+                      _hasMore = true;
+                      await _getDoacoes();
+                    },
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      itemCount: _doacoes.length + 1,
                       itemBuilder: (context, index) {
-                        final item = _doacoesFiltradas[index];
+                        if (index == _doacoes.length) {
+                          return _hasMore
+                              ? const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(child: CircularProgressIndicator()),
+                                )
+                              : const SizedBox.shrink();
+                        }
+                        final doacao = _doacoes[index].data() as Map<String, dynamic>;
                         return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                           child: ListTile(
-                            title: Text(item['nome'] ?? ''),
-                            subtitle: Text('${item['descricao']} - ${item['categoria']}'),
+                            title: Text(doacao['nome'] ?? 'Sem nome'),
+                            subtitle: Text(
+                              '${doacao['descricao'] ?? ''}\nCategoria: ${doacao['categoria'] ?? ''}',
+                            ),
+                            isThreeLine: true,
+                            onTap: () {
+                             Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetalheDoacaoPage(doacao: doacao),
+                              ),
+                            );
+                          },
                           ),
                         );
                       },
                     ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _abrirFormulario,
+        onPressed: () async {
+          final resultado = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => DoacaoTela()),
+          );
+
+          if (resultado != null && resultado is Map<String, dynamic>) {
+            await _firestore.collection('doac').add({
+              'nome': resultado['nome'],
+              'descricao': resultado['descricao'],
+              'categoria': resultado['categoria'],
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+
+            setState(() {
+              _doacoes.clear();
+              _lastDocument = null;
+              _hasMore = true;
+            });
+            await _getDoacoes();
+          }
+        },
         child: const Icon(Icons.add),
+        tooltip: 'Nova Doação',
       ),
     );
   }

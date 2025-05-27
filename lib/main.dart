@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'telas/login_tela.dart';
 import 'telas/home_tela.dart';
 import 'telas/doacao_tela.dart';
