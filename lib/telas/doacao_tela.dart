@@ -45,7 +45,11 @@ class _DoacaoTelaState extends State<DoacaoTela> {
         SnackBar(content: Text('Doação salva com sucesso!')),
       );
 
-      Navigator.pop(context); // Fecha a tela após salvar
+      Navigator.pop(context, {
+       'nome': nome,
+       'descricao': descricao,
+       'categoria': categoria,
+      }); // Fecha a tela após salvar
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
